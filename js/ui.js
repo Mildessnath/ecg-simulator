@@ -175,7 +175,7 @@ function syncControls() {
   $('fsVal').textContent = `${fsAdc.toLocaleString('id-ID')} Hz`;
   $('bitsVal').textContent = `${bits} bit · ${(2 ** bits).toLocaleString('id-ID')} level`;
   $('vRefVal').textContent = `±${fmt(Number($('vRef').value), 2)} V`;
-  $('aaHint').textContent = `Butterworth orde 8, fc = 0,4·fs = ${hz(0.4 * fsAdc)} (48 dB/oktaf).`;
+  $('aaHint').textContent = `Butterworth orde 8, fc = 0,4·fs = ${hz(0.4 * fsAdc)}: ≈ −15,6 dB di fs/2, ≈ −48 dB baru di 0,8·fs.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -884,6 +884,9 @@ function filterNotes({ a, gain, d, filter }) {
 }
 const db1 = (v) => (Number.isFinite(v) ? fmt(v, 1) : '∞');
 
+/** SQNR terukur dengan satuan: NaN (semua sampel ter-clip) → "tidak tersedia". */
+const sqnrText = (v) => (Number.isNaN(v) ? 'tidak tersedia (semua sampel ter-clip)' : `${db1(v)} dB`);
+
 // ---------------------------------------------------------------------------
 // Eksperimen 3 — ADC: sampling, kuantisasi, aliasing
 // ---------------------------------------------------------------------------
@@ -1056,7 +1059,7 @@ function renderExp3(result) {
     ['Error RMS: terukur / teori Δ/√12', `${fmtVolt(q.errRms)} / ${fmtVolt(q.errRmsTheory)}`],
     ['SQNR teoretis (sinus skala penuh, 6,02N + 1,76)', `${fmt(q.sqnrTheoryFullScale, 1)} dB`],
     ['SQNR teoretis untuk sinyal ini (P<sub>x</sub> / (Δ²/12))', `${fmt(q.sqnrTheorySignal, 1)} dB`],
-    ['SQNR terukur', db1(q.sqnrMeasured) + ' dB'],
+    ['SQNR terukur', sqnrText(q.sqnrMeasured)],
   ]);
 
   // --- Tabel deteksi aliasing ---
@@ -1178,7 +1181,7 @@ function renderExp4(result) {
     ['Pemanfaatan rentang ADC', `puncak ${fmtVolt(pkOut)} dari ${fmt(p.vRef, 2)} V`,
       pkOut / p.vRef < 0.1 ? ['warn', `hanya ${fmt((100 * pkOut) / p.vRef, 0)} % — naikkan gain`] : ['ok', `${fmt((100 * pkOut) / p.vRef, 0)} % rentang`]],
     ['Output digital', `${(p.fs * p.bits).toLocaleString('id-ID')} bit/s · ${fmt((p.fs * p.bits * ecg.params.duration) / 8 / 1024, 1)} KiB per ${fmt(ecg.params.duration, 0)} s`,
-      ['info', `SQNR terukur ${db1(q.sqnrMeasured)} dB`]],
+      ['info', `SQNR terukur ${sqnrText(q.sqnrMeasured)}`]],
   ];
   const warns = rows.filter((r) => r[2][0] === 'warn').length;
   $('cfgBadge').textContent = warns ? `${warns} peringatan` : 'semua cek lolos';
@@ -1243,6 +1246,7 @@ function fmtVal(v, unit) {
 function valTable(rows) {
   const status = (r) => {
     if (r.na) return ['fail', '✗ di luar jangkauan simulasi'];
+    if (Number.isNaN(r.simulasi)) return ['l', 'tidak tersedia (semua sampel ter-clip)'];
     if (r.ok) return ['ok', r.mode === 'le' ? '✓ simulasi ≤ teori' : '✓ sesuai'];
     if (r.assumption) return ['amber', '≈ asumsi error seragam tidak berlaku (N < 6)'];
     return ['fail', '✗ di luar toleransi'];

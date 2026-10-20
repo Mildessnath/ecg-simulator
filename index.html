@@ -541,7 +541,7 @@
           <div class="explain-grid">
             <div class="xcard"><h5>Gain ×1000</h5><p>R ≈ 1 mV menjadi ≈ 1 V: memakai separuh rentang ADC ±2 V dan menyisakan ruang untuk baseline wander serta noise sebelum saturasi.</p></div>
             <div class="xcard"><h5>BPF 0,5–40 Hz</h5><p>Pita monitor: HPF 0,5 Hz menekan baseline wander, LPF 40 Hz menekan noise HF dan sebagian 50 Hz, sambil mempertahankan bentuk QRS (puncak R ±95 %). Untuk EKG diagnostik dipakai 0,05–150 Hz.</p></div>
-            <div class="xcard"><h5>fs 250 Hz + anti-aliasing</h5><p>Nyquist 125 Hz jauh di atas pita 40 Hz; AA LPF orde 8 (fc 100 Hz) memastikan noise pita lebar tidak terlipat. Satu QRS terwakili ±25 sampel.</p></div>
+            <div class="xcard"><h5>fs 250 Hz + anti-aliasing</h5><p>Nyquist 125 Hz jauh di atas pita 40 Hz; AA LPF orde 8 (fc 100 Hz) meredam noise pita lebar sebelum sampling, tetapi tidak total: ≈ −15,6 dB di Nyquist (125 Hz) dan baru ≈ −48 dB di 200 Hz (0,8·fs), sehingga komponen di antaranya masih dapat terlipat sebagian. Satu QRS terwakili ±25 sampel.</p></div>
             <div class="xcard"><h5>12 bit, ±2 V</h5><p>LSB 0,98 mV di keluaran ≈ 0,98 µV dirujuk ke elektroda — jauh di bawah amplitudo gelombang P (±0,15 mV). Laju data 250 × 12 = 3.000 bit/s.</p></div>
           </div>
         </div>

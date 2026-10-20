@@ -276,6 +276,75 @@ test('kode biner two\'s complement', () => {
   assert.equal(toBinary(5, 12), '000000000101');
 });
 
+// --- Perbaikan hasil review: SQNR bila semua sampel ter-clip ---
+test('quantize: semua sampel ter-clip → sqnrMeasured NaN (bukan Infinity), statistik error NaN', () => {
+  const q = quantize(Float64Array.from([3, -3, 2.5, -2.2, 10]), { bits: 12, vRef: 2 });
+  assert.equal(q.clippedCount, 5);
+  assert.ok(Number.isNaN(q.sqnrMeasured), `sqnrMeasured = ${q.sqnrMeasured}`);
+  assert.ok(Number.isNaN(q.errRms));
+  assert.notEqual(q.sqnrMeasured, Infinity);
+});
+test('quantize: sqnrMeasured tetap terdefinisi untuk kasus lain (campuran clip / tepat di level)', () => {
+  // sebagian ter-clip → dihitung dari sampel yang tidak ter-clip, hasilnya hingga
+  const mixed = quantize(Float64Array.from([0.3, -0.7, 0.123, 3, -3]), { bits: 8, vRef: 2 });
+  assert.equal(mixed.clippedCount, 2);
+  assert.ok(Number.isFinite(mixed.sqnrMeasured), `campuran: ${mixed.sqnrMeasured}`);
+  // ada sampel terukur, semuanya tepat di level (error 0) → Infinity (error nol), bukan NaN
+  const exact = quantize(Float64Array.from([0, 0.25, -0.5, 1]), { bits: 4, vRef: 2 }); // Δ = 0,25
+  assert.equal(exact.clippedCount, 0);
+  assert.equal(exact.sqnrMeasured, Infinity);
+  // tidak ada sampel sama sekali tidak diuji: tidak terjadi di pipeline (durasi ≥ 2 s)
+});
+test('pipeline: semua sampel ADC ter-clip → sqnrMeasured NaN sampai ke keluaran runPipeline', () => {
+  // Pada fs 100 Hz, jala-jala 50 Hz jatuh tepat ±0,644·0,5 mV = ±0,322 V (gain 1000) di tiap
+  // sampel; sinus uji 0,1 mV menambah paling banyak ±0,1 V → |x| ≥ 0,222 V > Vref 0,1 V.
+  const params = {
+    signal: {
+      ...DEFAULT_SIGNAL_PARAMS, source: 'sine', sineFreq: 10, sineAmp: 0.1e-3,
+      disturbances: { ...DEFAULT_SIGNAL_PARAMS.disturbances, mains: { on: true, amp: 0.5e-3, freq: 50 } },
+    },
+    amplifier: { gain: 1000, vSat: 2 },
+    filter: { ...DEFAULT_FILTER_PARAMS, type: 'none' },
+    adc: { fs: 100, bits: 12, vRef: 0.1, antiAlias: false },
+  };
+  const { quant } = runPipeline(params).stages.adc;
+  assert.equal(quant.clippedCount, quant.codes.length, 'semua sampel harus ter-clip');
+  assert.ok(Number.isNaN(quant.sqnrMeasured), `sqnrMeasured = ${quant.sqnrMeasured}`);
+  // dan kasus normal pada pipeline yang sama dengan rentang cukup: terhingga
+  const ok = runPipeline({ ...params, adc: { ...params.adc, vRef: 2 } }).stages.adc.quant;
+  assert.ok(Number.isFinite(ok.sqnrMeasured));
+});
+
+// --- Perbaikan hasil review: respons AA & deteksi aliasing ---
+test('AA Butterworth orde 8: ≈ −15,6 dB di Nyquist, ≈ −28 dB di 0,6·fs, ≈ −48 dB di 0,8·fs (bukan 48 dB di Nyquist)', () => {
+  for (const f of [100, 250, 500]) {
+    const aa = designAntiAlias(f, fs);
+    const h = (r) => magnitudeDb(aa.sections, fs, r * f);
+    close(h(0.4), -3.01, 0.1, `fc, fs=${f}`);
+    close(h(0.5), -15.6, 0.3, `Nyquist, fs=${f}`);
+    close(h(0.6), -28.2, 0.5, `0,6·fs, fs=${f}`);
+    close(h(0.8), -48.2, 1, `0,8·fs, fs=${f}`);
+    assert.ok(h(0.5) > -20, 'di Nyquist redaman jauh dari 48 dB');
+  }
+});
+test('deteksi aliasing memakai amplitudo setelah respons AA: alias tetap terlihat di 0,6·fs, hilang di 0,8·fs', () => {
+  // Rumus amplitudo identik dengan ui.js (exp3Analysis): ampIn × gain × |H_AA(f)|
+  const fsAdc = 100, gain = 1000, ampIn = 0.1e-3; // 0,1 V di masukan ADC tanpa AA
+  const lsbHalf = (2 * 2) / 2 ** 12 / 2; // ½ LSB 12 bit, ±2 V ≈ 0,488 mV
+  const aa = designAntiAlias(fsAdc, fs);
+  const tone = (nama, f, withAA) => ({
+    nama, f, amp: ampIn * gain * (withAA ? 10 ** (magnitudeDb(aa.sections, fs, f) / 20) : 1),
+  });
+  const [t50, t60, t80] = analyzeAliasing([tone('N', 50, true), tone('0,6', 60, true), tone('0,8', 80, true)], fsAdc, lsbHalf);
+  assert.ok(t50.atNyquist && t50.visible, `di Nyquist (−15,6 dB): ${t50.amp}`);
+  assert.ok(t60.visible, `0,6·fs masih lolos: ${t60.amp}`);
+  assert.ok(!t80.visible, `0,8·fs teredam < ½ LSB: ${t80.amp}`);
+  assert.ok(t60.amp > 5 * t80.amp, 'amplitudo setelah AA turun tajam dari 0,6 ke 0,8·fs');
+  // tanpa AA, ketiganya sama-sama terlihat → perbandingan membuktikan respons AA memang dipakai
+  const raw = analyzeAliasing([tone('0,8', 80, false)], fsAdc, lsbHalf)[0];
+  assert.ok(raw.visible && raw.fAlias === 20);
+});
+
 console.log('pipeline.js');
 test('runPipeline menghasilkan tahap ecg & amp yang konsisten', () => {
   const r = runPipeline(DEFAULT_PARAMS);

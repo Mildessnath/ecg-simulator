@@ -88,6 +88,12 @@ Setiap perubahan kontrol menjalankan ulang seluruh pipeline lalu menggambar ulan
 | | Rentang | ±0,1 … ±5 V | ±2 V |
 | | Anti-aliasing | Butterworth orde 8, fc = 0,4·fs | nonaktif |
 
+Respons anti-aliasing (tidak bergantung pada fs): −3 dB di 0,4·fs, **≈ −15,6 dB di Nyquist (0,5·fs)**,
+≈ −28 dB di 0,6·fs, dan baru ≈ −48 dB di 0,8·fs. Kemiringan asimtotiknya 48 dB/oktaf, tetapi redaman di
+Nyquist jauh lebih kecil; komponen di antara fs/2 dan ±0,8·fs masih dapat menjadi alias yang terlihat.
+Deteksi aliasing di Eksperimen 3 memakai amplitudo komponen **setelah** dikalikan respons filter Eksperimen 2
+dan respons anti-aliasing (bila aktif) pada frekuensi komponen itu.
+
 **Konfigurasi rekomendasi** (tombol di Eksperimen 4): gain ×1000, BPF 0,5–40 Hz, anti-aliasing aktif,
 fs 250 Hz, 12 bit, ±2 V. Sumber dan gangguan tidak diubah.
 

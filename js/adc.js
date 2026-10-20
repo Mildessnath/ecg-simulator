@@ -50,8 +50,11 @@ export function butterworthQs(order) {
 
 /**
  * LPF anti-aliasing Butterworth orde 8 (bawaan), fc = 0,4·fs ADC.
- * Orde 8 dipilih karena turun 48 dB/oktaf: komponen satu oktaf di atas fc sudah
- * teredam ±48 dB. Orde 2 (12 dB/oktaf) terlalu landai — alias masih jelas terlihat.
+ * Kemiringan asimtotik orde 8 = 48 dB/oktaf, tetapi redaman di dekat fc masih
+ * landai: −3 dB di fc (0,4·fs), ≈ −15,6 dB di Nyquist (0,5·fs), ≈ −28 dB di 0,6·fs
+ * dan baru ≈ −48 dB di 0,8·fs (satu oktaf di atas fc). Jadi komponen di antara
+ * fs/2 dan ±0,8·fs masih dapat lolos sebagai alias yang terlihat. Orde 2
+ * (12 dB/oktaf) jauh lebih landai lagi.
  * fc diletakkan di bawah fs/2 karena filter nyata butuh pita transisi.
  */
 export function designAntiAlias(fsAdc, fsAnalog, { order = 8, ratio = 0.4 } = {}) {
@@ -126,8 +129,10 @@ export function quantize(x, { bits = 12, vRef = 2 } = {}) {
     errMax, errRms,
     errMaxTheory: lsb / 2,
     errRmsTheory: lsb / Math.sqrt(12),
-    // SQNR terukur: daya sinyal / daya error (sampel tidak ter-clip)
-    sqnrMeasured: sumE2 > 0 ? 10 * Math.log10(sumX2 / sumE2) : Infinity,
+    // SQNR terukur: daya sinyal / daya error (sampel tidak ter-clip).
+    // NaN bila semua sampel ter-clip (tidak ada sampel yang bisa diukur);
+    // Infinity hanya bila ada sampel terukur tetapi seluruhnya tepat di level.
+    sqnrMeasured: cnt === 0 ? NaN : (sumE2 > 0 ? 10 * Math.log10(sumX2 / sumE2) : Infinity),
     // SQNR teoretis untuk SINYAL INI: P_x / (Δ²/12) — memperhitungkan seberapa
     // penuh rentang ADC terpakai.
     sqnrTheorySignal: cnt && sumX2 > 0 ? 10 * Math.log10((sumX2 / cnt) / ((lsb * lsb) / 12)) : -Infinity,
